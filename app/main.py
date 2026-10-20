@@ -1,15 +1,16 @@
 import logging
 import os
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.prompts import SYSTEM_PROMPT
 
@@ -20,6 +21,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 PUBLIC_DIR = BASE_DIR / "public"
 
 logger = logging.getLogger("app")
+
+MAX_HISTORY = 20  # most recent messages kept per request; bounds token cost
 
 app = FastAPI(title="Agentic RAG - Simple Q&A")
 
@@ -35,6 +38,23 @@ class QueryRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
 
 
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=20000)
+
+
+class ChatRequest(BaseModel):
+    # The full recent conversation, oldest first. The server is stateless, so the browser sends the history.
+    messages: list[ChatMessage] = Field(min_length=1, max_length=MAX_HISTORY)
+
+    @field_validator("messages")
+    @classmethod
+    def last_message_is_user_question(cls, v):
+        if v[-1].role != "user" or len(v[-1].content) > 4000:
+            raise ValueError("last message must be a user message of at most 4000 characters")
+        return v
+
+
 GENERIC_ERROR = "The AI service failed to answer. Please try again."
 
 
@@ -46,12 +66,12 @@ llm = ChatGoogleGenerativeAI(
 )
 
 
-def build_messages(question: str):
-    # The system message sets behaviour; the human message carries only the user's text.
-    return [
-        SystemMessage(content=os.getenv("SYSTEM_PROMPT") or SYSTEM_PROMPT),
-        HumanMessage(content=question),
-    ]
+def build_messages(history: list[ChatMessage]):
+    # The system message sets behaviour; the rest is the conversation so far, which gives the model memory.
+    messages = [SystemMessage(content=os.getenv("SYSTEM_PROMPT") or SYSTEM_PROMPT)]
+    for m in history:
+        messages.append(HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content))
+    return messages
 
 
 def sse_event(data: str, event: str | None = None) -> str:
@@ -75,10 +95,10 @@ def chunk_text(chunk) -> str:
     return "".join(parts)
 
 
-def token_stream(question: str):
+def token_stream(history: list[ChatMessage]):
     # Once streaming starts the HTTP status is already sent, so failures are reported as an in-stream event.
     try:
-        for chunk in llm.stream(build_messages(question)):
+        for chunk in llm.stream(build_messages(history)):
             text = chunk_text(chunk)
             if text:
                 yield sse_event(text)
@@ -96,7 +116,7 @@ def health():
 @app.post("/query")
 def handle_query(req: QueryRequest):
     try:
-        answer = llm.invoke(build_messages(req.query)).text
+        answer = llm.invoke(build_messages([ChatMessage(role="user", content=req.query)])).text
         return {"your_question": req.query, "answer": answer}
     except Exception:
         logger.exception("query failed")
@@ -104,9 +124,9 @@ def handle_query(req: QueryRequest):
 
 
 @app.post("/query/stream")
-def handle_query_stream(req: QueryRequest):
+def handle_query_stream(req: ChatRequest):
     return StreamingResponse(
-        token_stream(req.query),
+        token_stream(req.messages),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )

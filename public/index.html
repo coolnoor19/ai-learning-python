@@ -4,20 +4,46 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ask Gemini</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" media="(prefers-color-scheme: light)">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <main>
-    <h1>Ask Gemini</h1>
-    <form id="form">
-      <textarea id="question" rows="3" placeholder="Ask something... (Enter to send, Shift+Enter for new line)" autofocus></textarea>
-      <div class="buttons">
-        <button type="submit" id="send">Send</button>
-        <button type="button" id="stop" hidden>Stop</button>
-      </div>
-    </form>
-    <div id="answer" aria-live="polite"></div>
-  </main>
+  <div class="app">
+    <header>
+      <div class="brand"><span class="logo">&#10022;</span> Ask Gemini</div>
+      <button type="button" id="new-chat" class="ghost" title="Start a new chat">+ New chat</button>
+    </header>
+
+    <main id="chat" aria-live="polite">
+      <section id="welcome">
+        <h1>How can I help you today?</h1>
+        <p>Ask about code, debugging or anything else. I remember this conversation.</p>
+        <div class="suggestions">
+          <button type="button" class="chip">Explain closures in JavaScript with an example</button>
+          <button type="button" class="chip">Write a debounce function in TypeScript</button>
+          <button type="button" class="chip">How do I structure a React project?</button>
+          <button type="button" class="chip">Why is my async function returning a Promise?</button>
+        </div>
+      </section>
+      <div id="messages"></div>
+    </main>
+
+    <button type="button" id="jump" class="jump" hidden title="Scroll to latest">&#8595;</button>
+
+    <footer>
+      <form id="form">
+        <textarea id="question" rows="1" maxlength="4000" placeholder="Message Gemini...  (Enter to send, Shift+Enter for a new line)" autofocus></textarea>
+        <button type="submit" id="send" class="primary" title="Send">&#10148;</button>
+        <button type="button" id="stop" class="primary stop" title="Stop generating" hidden>&#9632;</button>
+      </form>
+      <p class="hint">AI can make mistakes. Check important information.</p>
+    </footer>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
