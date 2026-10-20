@@ -7,8 +7,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
+
+from app.core.prompts import SYSTEM_PROMPT
 
 # Locally the key comes from .env; on Vercel it comes from the project's Environment Variables.
 load_dotenv()
@@ -43,8 +46,12 @@ llm = ChatGoogleGenerativeAI(
 )
 
 
-def build_prompt(question: str) -> str:
-    return f"Answer this clearly and concisely: {question}"
+def build_messages(question: str):
+    # The system message sets behaviour; the human message carries only the user's text.
+    return [
+        SystemMessage(content=os.getenv("SYSTEM_PROMPT") or SYSTEM_PROMPT),
+        HumanMessage(content=question),
+    ]
 
 
 def sse_event(data: str, event: str | None = None) -> str:
@@ -71,7 +78,7 @@ def chunk_text(chunk) -> str:
 def token_stream(question: str):
     # Once streaming starts the HTTP status is already sent, so failures are reported as an in-stream event.
     try:
-        for chunk in llm.stream(build_prompt(question)):
+        for chunk in llm.stream(build_messages(question)):
             text = chunk_text(chunk)
             if text:
                 yield sse_event(text)
@@ -89,7 +96,7 @@ def health():
 @app.post("/query")
 def handle_query(req: QueryRequest):
     try:
-        answer = llm.invoke(build_prompt(req.query)).text
+        answer = llm.invoke(build_messages(req.query)).text
         return {"your_question": req.query, "answer": answer}
     except Exception:
         logger.exception("query failed")
