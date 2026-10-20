@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ask Gemini</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <h1>Ask Gemini</h1>
+    <form id="form">
+      <textarea id="question" rows="3" placeholder="Ask something... (Enter to send, Shift+Enter for new line)" autofocus></textarea>
+      <div class="buttons">
+        <button type="submit" id="send">Send</button>
+        <button type="button" id="stop" hidden>Stop</button>
+      </div>
+    </form>
+    <div id="answer" aria-live="polite"></div>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
